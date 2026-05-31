@@ -1,5 +1,6 @@
 import { formatCompact, formatPercent } from "@/lib/format";
 import { getScoredInfluencers, getSummaryMetrics } from "@/lib/scoring";
+import ContentStudio from "./ContentStudio";
 
 const scoreColor = (score: number): string => {
   if (score >= 80) {
@@ -154,6 +155,8 @@ export default function Home() {
             </div>
           ))}
         </section>
+
+        <ContentStudio />
 
         <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="surface rounded-3xl p-6">
