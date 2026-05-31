@@ -1,0 +1,5 @@
+{
+  "id": "inf-001",
+  "metrics": {"followers": 100000, "avgLikes": 1200, "avgComments": 40, "avgShares": 200, "avgSaves": 150},
+  "quality": {"purchasedFollowersScore": 0.05, "engagementPodScore": 0.02, "botActivityScore": 0.03, "spikeScore": 0.01, "commentQuality": 0.8, "audienceQuality": 0.85}
+}
