@@ -7,3 +7,6 @@ openai
 pandas
 prophet
 joblib
+numpy
+scikit-learn
+lightgbm
