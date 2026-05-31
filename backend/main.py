@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Any
+import joblib
+from pathlib import Path
 
 try:
     import openai
@@ -241,6 +243,74 @@ def approve_content(payload: ApprovalRequest) -> ApprovalResponse:
         status=payload.status,
         message=f"Post {payload.post_id} marked as {verdict}.",
     )
+
+
+# Load Ratefluencer model if available
+MODEL = None
+MODEL_PATH = Path(__file__).resolve().parents[1] / "ml" / "ratefluencer_model.joblib"
+if MODEL_PATH.exists():
+    try:
+        MODEL = joblib.load(MODEL_PATH)
+    except Exception:
+        MODEL = None
+
+
+class ScoreRequest(BaseModel):
+    metrics: Dict[str, Any]
+    quality: Optional[Dict[str, Any]] = None
+    timeseries: Optional[List[ForecastPoint]] = None
+
+
+class ScoreResponse(BaseModel):
+    success: bool
+    score: float
+    details: Dict[str, Any]
+
+
+@app.post("/api/score", response_model=ScoreResponse)
+def score_influencer(payload: ScoreRequest) -> ScoreResponse:
+    # compute features
+    try:
+        from .auth import auth as auth_mod
+    except Exception:
+        from auth import auth as auth_mod
+
+    try:
+        from .forecast import forecast as forecast_mod
+    except Exception:
+        from forecast import forecast as forecast_mod
+
+    metrics = payload.metrics or {}
+    quality = payload.quality or {}
+
+    engagement_rate = auth_mod.compute_engagement_rate(metrics)
+    authenticity = auth_mod.compute_authenticity_score({"metrics": metrics, "quality": quality})
+
+    growth_score = 50
+    if payload.timeseries:
+        g = forecast_mod.compute_growth_potential([{"ds": p.ds, "y": p.y} for p in payload.timeseries], periods=7)
+        growth_score = int(g.get("score", 50))
+
+    features = [
+        float(metrics.get("followers", 0)),
+        float(metrics.get("avgLikes", 0)),
+        float(metrics.get("avgComments", 0)),
+        float(engagement_rate),
+        float(authenticity),
+        float(growth_score),
+    ]
+
+    if MODEL is None:
+        # fallback simple scoring
+        score = float(0.5 * authenticity + 0.5 * growth_score)
+    else:
+        try:
+            pred = MODEL.predict([features])
+            score = float(pred[0])
+        except Exception:
+            score = float(0.5 * authenticity + 0.5 * growth_score)
+
+    return ScoreResponse(success=True, score=score, details={"authenticity": authenticity, "growth_score": growth_score, "engagement_rate": engagement_rate})
 
 
 @app.post("/api/forecast", response_model=ForecastResponse)
