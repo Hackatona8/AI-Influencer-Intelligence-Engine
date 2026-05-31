@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --sand: #f7f2e8;
+  --ink: #1a1714;
+  --surface: #ffffff;
+  --muted: #6d6458;
+  --line: #e6dac7;
+  --accent: #ef6c2f;
+  --accent-2: #1b9aaa;
+  --accent-3: #0f3d2e;
+  --accent-4: #f2c94c;
+}
+
+@theme inline {
+  --color-background: var(--sand);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-body);
+}
+
+body {
+  background: var(--sand);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+.font-heading {
+  font-family: var(--font-heading), var(--font-body), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.surface {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(26, 23, 20, 0.08);
+  box-shadow: 0 24px 60px rgba(26, 23, 20, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 9s ease-in-out infinite;
+  }
+  .animate-float-slow {
+    animation: float 14s ease-in-out infinite;
+  }
+  .animate-rise {
+    animation: rise 0.7s ease both;
+  }
+}
