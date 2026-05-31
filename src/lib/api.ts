@@ -32,6 +32,15 @@ export type ApprovalResponse = {
   message: string;
 };
 
+export type ForecastPoint = { ds: string; y: number };
+
+export type ForecastResponse = {
+  success: boolean;
+  score: number;
+  trend: string;
+  forecast: ForecastPoint[];
+};
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -78,5 +87,16 @@ export const updateApprovalStatus = async (
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ post_id: postId, status }),
+  });
+};
+
+export const forecastTimeseries = async (
+  timeseries: ForecastPoint[],
+  periods = 7,
+): Promise<ForecastResponse> => {
+  return request<ForecastResponse>("/api/forecast", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timeseries, periods }),
   });
 };

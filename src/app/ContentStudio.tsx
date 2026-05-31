@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   fetchTrendingTopics,
   generateContent,
+  forecastTimeseries,
   updateApprovalStatus,
   type ApprovalStatus,
   type GenerateResponse,
@@ -29,6 +30,12 @@ export default function ContentStudio() {
   const [notice, setNotice] = useState<string | null>(null);
   const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isForecasting, setIsForecasting] = useState(false);
+  const [forecastResult, setForecastResult] = useState<{
+    score: number;
+    trend: string;
+    forecast: { ds: string; y: number }[];
+  } | null>(null);
 
   const handleFetchTrends = async () => {
     setIsLoadingTrends(true);
@@ -61,6 +68,37 @@ export default function ContentStudio() {
       setError("Generation failed. Try again in a moment.");
     } finally {
       setGeneratingTopicId(null);
+    }
+  };
+
+  const buildSampleSeries = (base: number, trendScore: number) => {
+    // create a simple weekly timeseries (8 points)
+    const points = [] as { ds: string; y: number }[];
+    const slope = (trendScore - 50) / 10; // modest slope
+    const today = new Date();
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i * 7);
+      const noise = Math.round((Math.random() - 0.5) * base * 0.03);
+      const y = Math.max(0, Math.round(base + (i - 3) * slope * base * 0.02 + noise));
+      points.push({ ds: d.toISOString().slice(0, 10), y });
+    }
+    return points;
+  };
+
+  const handleForecast = async (topic: TrendTopic) => {
+    setIsForecasting(true);
+    setError(null);
+    setForecastResult(null);
+    try {
+      const sample = buildSampleSeries(1000, topic.trendScore);
+      const res = await forecastTimeseries(sample, 7);
+      setForecastResult({ score: res.score, trend: res.trend, forecast: res.forecast });
+      setNotice(`Growth potential: ${res.score} (${res.trend})`);
+    } catch (err) {
+      setError("Forecast failed. Ensure backend is running.");
+    } finally {
+      setIsForecasting(false);
     }
   };
 
@@ -134,9 +172,14 @@ export default function ContentStudio() {
                     onClick={() => handleGenerate(topic.id)}
                     disabled={generatingTopicId === topic.id}
                   >
-                    {generatingTopicId === topic.id
-                      ? "Generating..."
-                      : "Generate content"}
+                    {generatingTopicId === topic.id ? "Generating..." : "Generate content"}
+                  </button>
+                  <button
+                    className="rounded-full border border-[color:var(--line)] px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => handleForecast(topic)}
+                    disabled={isForecasting}
+                  >
+                    {isForecasting ? "Estimating..." : "Estimate growth"}
                   </button>
                 </div>
               </div>
@@ -212,6 +255,24 @@ export default function ContentStudio() {
             )}
           </div>
         </div>
+            {forecastResult ? (
+              <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-white/70 p-4">
+                <div className="text-xs uppercase tracking-[0.12em] text-[color:var(--muted)]">
+                  Growth forecast
+                </div>
+                <div className="mt-2 text-sm text-[color:var(--ink)]">
+                  Score: <span className="font-semibold">{forecastResult.score}</span> — Trend: <span className="font-semibold">{forecastResult.trend}</span>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm">
+                  {forecastResult.forecast.map((p) => (
+                    <div key={p.ds} className="flex justify-between">
+                      <div className="text-[color:var(--muted)]">{p.ds}</div>
+                      <div className="font-mono">{Math.round(p.y)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
         <div className="mt-5 flex flex-wrap gap-3">
           <button
