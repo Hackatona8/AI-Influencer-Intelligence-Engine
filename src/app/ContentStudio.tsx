@@ -9,6 +9,7 @@ import {
   type ApprovalStatus,
   type GenerateResponse,
   type TrendTopic,
+  type ForecastResponse,
 } from "@/lib/api";
 
 const badgeColor = (score: number): string => {
@@ -36,6 +37,29 @@ export default function ContentStudio() {
     trend: string;
     forecast: { ds: string; y: number }[];
   } | null>(null);
+  const [forecastByTopic, setForecastByTopic] = useState<Record<string, ForecastResponse | null>>({});
+  const [forecastLoadingByTopic, setForecastLoadingByTopic] = useState<Record<string, boolean>>({});
+
+  const Sparkline = ({ data }: { data: number[] }) => {
+    if (!data || data.length === 0) return null;
+    const w = 80;
+    const h = 20;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const range = max - min || 1;
+    const points = data
+      .map((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / range) * h;
+        return `${x},${y}`;
+      })
+      .join(" ");
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} xmlns="http://www.w3.org/2000/svg">
+        <polyline fill="none" stroke="#4F46E5" strokeWidth={1.5} points={points} />
+      </svg>
+    );
+  };
 
   const handleFetchTrends = async () => {
     setIsLoadingTrends(true);
@@ -47,6 +71,8 @@ export default function ContentStudio() {
       const data = await fetchTrendingTopics();
       setTopics(data);
       setNotice("Trends loaded. Pick a topic to generate assets.");
+        // precompute lightweight growth estimates for each topic in background
+        data.forEach((t) => fetchTopicForecast(t));
     } catch (err) {
       setError("Unable to load trends. Is the FastAPI server running?");
     } finally {
@@ -99,6 +125,19 @@ export default function ContentStudio() {
       setError("Forecast failed. Ensure backend is running.");
     } finally {
       setIsForecasting(false);
+    }
+  };
+
+  const fetchTopicForecast = async (topic: TrendTopic) => {
+    setForecastLoadingByTopic((s) => ({ ...s, [topic.id]: true }));
+    try {
+      const sample = buildSampleSeries(1000, topic.trendScore);
+      const res = await forecastTimeseries(sample, 7);
+      setForecastByTopic((s) => ({ ...s, [topic.id]: res }));
+    } catch (err) {
+      setForecastByTopic((s) => ({ ...s, [topic.id]: null }));
+    } finally {
+      setForecastLoadingByTopic((s) => ({ ...s, [topic.id]: false }));
     }
   };
 
@@ -167,6 +206,16 @@ export default function ContentStudio() {
                   >
                     {topic.trendScore}
                   </span>
+                  {forecastByTopic[topic.id] ? (
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-semibold">{forecastByTopic[topic.id]!.score}</div>
+                      <div className="w-20 h-6">
+                        <Sparkline data={forecastByTopic[topic.id]!.forecast.map((p) => p.y)} />
+                      </div>
+                    </div>
+                  ) : forecastLoadingByTopic[topic.id] ? (
+                    <div className="text-xs text-[color:var(--muted)]">Estimating...</div>
+                  ) : null}
                   <button
                     className="rounded-full border border-[color:var(--line)] px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={() => handleGenerate(topic.id)}
