@@ -97,6 +97,15 @@ export default function ContentStudio() {
     }
   };
 
+  const displayScore = (topic: TrendTopic) => {
+    const f = forecastByTopic[topic.id];
+    if (f && typeof f.score === "number") {
+      // weight forecast score 60% and topic.trendScore 40%
+      return Math.round(f.score * 0.6 + topic.trendScore * 0.4);
+    }
+    return topic.trendScore;
+  };
+
   const buildSampleSeries = (base: number, trendScore: number) => {
     // create a simple weekly timeseries (8 points)
     const points = [] as { ds: string; y: number }[];
