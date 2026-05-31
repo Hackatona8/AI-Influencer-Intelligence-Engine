@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from typing import Any
 
 try:
     import openai
@@ -67,6 +68,23 @@ class ApprovalResponse(BaseModel):
     postId: str
     status: Literal["approved", "rejected"]
     message: str
+
+
+class ForecastPoint(BaseModel):
+    ds: str
+    y: float
+
+
+class ForecastRequest(BaseModel):
+    timeseries: List[ForecastPoint]
+    periods: Optional[int] = 7
+
+
+class ForecastResponse(BaseModel):
+    success: bool
+    score: int
+    trend: str
+    forecast: List[Dict[str, Any]]
 
 
 def slugify(text: str) -> str:
@@ -222,4 +240,24 @@ def approve_content(payload: ApprovalRequest) -> ApprovalResponse:
         postId=payload.post_id,
         status=payload.status,
         message=f"Post {payload.post_id} marked as {verdict}.",
+    )
+
+
+@app.post("/api/forecast", response_model=ForecastResponse)
+def forecast(payload: ForecastRequest) -> ForecastResponse:
+    # Convert incoming pydantic points to expected simple dict list
+    series = [{"ds": p.ds, "y": p.y} for p in payload.timeseries]
+    # import local forecast module
+    try:
+        from .forecast.forecast import compute_growth_potential
+    except Exception:
+        # try relative import fallback
+        from forecast.forecast import compute_growth_potential
+
+    result = compute_growth_potential(series, periods=payload.periods or 7)
+    return ForecastResponse(
+        success=True,
+        score=int(result.get("score", 50)),
+        trend=result.get("trend", "flat"),
+        forecast=result.get("forecast", []),
     )
