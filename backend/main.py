@@ -351,12 +351,18 @@ def score_influencer(payload: ScoreRequest) -> ScoreResponse:
     try:
         from .auth import auth as auth_mod
     except Exception:
-        from auth import auth as auth_mod
+        try:
+            from backend.auth import auth as auth_mod
+        except Exception:
+            from auth import auth as auth_mod
 
     try:
         from .forecast import forecast as forecast_mod
     except Exception:
-        from forecast import forecast as forecast_mod
+        try:
+            from backend.forecast import forecast as forecast_mod
+        except Exception:
+            from forecast import forecast as forecast_mod
 
     metrics = payload.metrics or {}
     quality = payload.quality or {}
@@ -409,8 +415,11 @@ def forecast(payload: ForecastRequest) -> ForecastResponse:
     try:
         from .forecast.forecast import compute_growth_potential
     except Exception:
-        # try relative import fallback
-        from forecast.forecast import compute_growth_potential
+        try:
+            from backend.forecast.forecast import compute_growth_potential
+        except Exception:
+            # final fallback when running from backend/ as cwd
+            from forecast.forecast import compute_growth_potential
 
     result = compute_growth_potential(series, periods=payload.periods or 7)
     return ForecastResponse(
