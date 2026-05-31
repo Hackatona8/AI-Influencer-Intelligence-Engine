@@ -39,6 +39,8 @@ export default function ContentStudio() {
   } | null>(null);
   const [forecastByTopic, setForecastByTopic] = useState<Record<string, ForecastResponse | null>>({});
   const [forecastLoadingByTopic, setForecastLoadingByTopic] = useState<Record<string, boolean>>({});
+  const [scoreByTopic, setScoreByTopic] = useState<Record<string, number | null>>({});
+  const [scoringLoadingByTopic, setScoringLoadingByTopic] = useState<Record<string, boolean>>({});
 
   const Sparkline = ({ data }: { data: number[] }) => {
     if (!data || data.length === 0) return null;
@@ -150,6 +152,21 @@ export default function ContentStudio() {
     }
   };
 
+  const fetchTopicScore = async (topic: TrendTopic) => {
+    setScoringLoadingByTopic((s) => ({ ...s, [topic.id]: true }));
+    try {
+      // synthesize basic influencer metrics from topic features
+      const metrics = { followers: 10000 + topic.trendScore * 100, avgLikes: Math.round(topic.trendScore * 10), avgComments: Math.round(topic.trendScore / 5) };
+      const timeseries = buildSampleSeries(1000, topic.trendScore);
+      const res = await scoreInfluencer({ metrics, quality: {}, timeseries });
+      setScoreByTopic((s) => ({ ...s, [topic.id]: Math.round(res.score) }));
+    } catch (err) {
+      setScoreByTopic((s) => ({ ...s, [topic.id]: null }));
+    } finally {
+      setScoringLoadingByTopic((s) => ({ ...s, [topic.id]: false }));
+    }
+  };
+
   const handleApproval = async (status: ApprovalStatus) => {
     if (!generation) {
       setError("Generate content before approving or rejecting.");
@@ -210,10 +227,10 @@ export default function ContentStudio() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeColor(
-                      topic.trendScore,
+                      displayScore(topic),
                     )}`}
                   >
-                    {topic.trendScore}
+                    {displayScore(topic)}
                   </span>
                   {forecastByTopic[topic.id] ? (
                     <div className="flex items-center gap-2">
@@ -238,6 +255,13 @@ export default function ContentStudio() {
                     disabled={isForecasting}
                   >
                     {isForecasting ? "Estimating..." : "Estimate growth"}
+                  </button>
+                  <button
+                    className="rounded-full border border-[color:var(--line)] px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => fetchTopicScore(topic)}
+                    disabled={!!scoringLoadingByTopic[topic.id]}
+                  >
+                    {scoringLoadingByTopic[topic.id] ? "Scoring..." : "Ratefluencer score"}
                   </button>
                 </div>
               </div>

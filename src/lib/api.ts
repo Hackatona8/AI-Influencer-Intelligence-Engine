@@ -100,3 +100,14 @@ export const forecastTimeseries = async (
     body: JSON.stringify({ timeseries, periods }),
   });
 };
+
+export type ScoreRequest = { metrics: Record<string, any>; quality?: Record<string, any>; timeseries?: ForecastPoint[] };
+export type ScoreResponse = { success: boolean; score: number; details: Record<string, any> };
+
+export const scoreInfluencer = async (payload: ScoreRequest): Promise<ScoreResponse> => {
+  return request<ScoreResponse>("/api/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+};
