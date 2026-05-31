@@ -18,6 +18,10 @@ from dotenv import load_dotenv
 from typing import Any
 import joblib
 from pathlib import Path
+try:
+    import jsonschema
+except Exception:
+    jsonschema = None
 
 try:
     import openai
@@ -99,6 +103,18 @@ class LLMContent(BaseModel):
     reel_script: str
     linkedin_post: str
     instagram_caption: str
+
+# JSON Schema used to validate raw LLM output before Pydantic coercion
+LLM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reel_script": {"type": "string", "minLength": 1},
+        "linkedin_post": {"type": "string", "minLength": 1},
+        "instagram_caption": {"type": "string", "minLength": 1},
+    },
+    "required": ["reel_script", "linkedin_post", "instagram_caption"],
+    "additionalProperties": True,
+}
 
 
 class ApprovalRequest(BaseModel):
@@ -198,7 +214,14 @@ def extract_json_from_text(text: str) -> Optional[dict]:
 def validate_llm_content(payload: Optional[dict]) -> Optional[LLMContent]:
     if not payload or not isinstance(payload, dict):
         return None
+    # If jsonschema is available, use it first to validate structure
+    if jsonschema is not None:
+        try:
+            jsonschema.validate(instance=payload, schema=LLM_SCHEMA)
+        except jsonschema.ValidationError:
+            return None
 
+    # Fallback to manual checks and Pydantic coercion
     required_keys = ["reel_script", "linkedin_post", "instagram_caption"]
     validated = {}
     for key in required_keys:
