@@ -11,7 +11,7 @@ import logging
 
 import requests
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -39,6 +39,7 @@ logger = logging.getLogger("ratefluencer")
 # simple in-memory cache for score results
 _SCORE_CACHE: dict = {}
 _CACHE_TTL = 60  # seconds
+_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 def _cache_get(key: str) -> Tuple[bool, any]:
@@ -57,6 +58,10 @@ def _cache_get(key: str) -> Tuple[bool, any]:
 
 def _cache_set(key: str, val: any):
     _SCORE_CACHE[key] = (time.time(), val)
+
+
+def _set_job(job_id: str, payload: Dict[str, Any]) -> None:
+    _JOBS[job_id] = payload
 
 app.add_middleware(
     CORSMiddleware,
@@ -345,6 +350,13 @@ class ScoreResponse(BaseModel):
     details: Dict[str, Any]
 
 
+class JobResponse(BaseModel):
+    success: bool
+    jobId: str
+    status: str
+    result: Optional[Dict[str, Any]] = None
+
+
 @app.post("/api/score", response_model=ScoreResponse)
 def score_influencer(payload: ScoreRequest) -> ScoreResponse:
     # compute features
@@ -405,6 +417,48 @@ def score_influencer(payload: ScoreRequest) -> ScoreResponse:
     _cache_set(key, score)
 
     return ScoreResponse(success=True, score=score, details={"authenticity": authenticity, "growth_score": growth_score, "engagement_rate": engagement_rate})
+
+
+def _run_score_job(job_id: str, payload: ScoreRequest) -> None:
+    _set_job(job_id, {"status": "running", "createdAt": time.time()})
+    try:
+        res = score_influencer(payload)
+        _set_job(
+            job_id,
+            {
+                "status": "completed",
+                "createdAt": _JOBS.get(job_id, {}).get("createdAt", time.time()),
+                "result": {
+                    "score": res.score,
+                    "details": res.details,
+                },
+            },
+        )
+    except Exception as exc:
+        _set_job(
+            job_id,
+            {
+                "status": "failed",
+                "createdAt": _JOBS.get(job_id, {}).get("createdAt", time.time()),
+                "result": {"error": str(exc)},
+            },
+        )
+
+
+@app.post("/api/score/async", response_model=JobResponse)
+def score_influencer_async(payload: ScoreRequest, background_tasks: BackgroundTasks) -> JobResponse:
+    job_id = f"job-{uuid.uuid4().hex[:10]}"
+    _set_job(job_id, {"status": "queued", "createdAt": time.time()})
+    background_tasks.add_task(_run_score_job, job_id, payload)
+    return JobResponse(success=True, jobId=job_id, status="queued")
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobResponse)
+def get_job(job_id: str) -> JobResponse:
+    job = _JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobResponse(success=True, jobId=job_id, status=job.get("status", "unknown"), result=job.get("result"))
 
 
 @app.post("/api/forecast", response_model=ForecastResponse)
