@@ -4,6 +4,10 @@ import os
 import random
 import json
 import re
+import time
+import hashlib
+from typing import Tuple
+import logging
 
 import requests
 from bs4 import BeautifulSoup
@@ -27,6 +31,32 @@ if OPENAI_API_KEY and openai is not None:
     openai.api_key = OPENAI_API_KEY
 
 app = FastAPI(title="Ratefluencer API", version="0.2.0")
+
+# basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ratefluencer")
+
+# simple in-memory cache for score results
+_SCORE_CACHE: dict = {}
+_CACHE_TTL = 60  # seconds
+
+
+def _cache_get(key: str) -> Tuple[bool, any]:
+    entry = _SCORE_CACHE.get(key)
+    if not entry:
+        return False, None
+    ts, val = entry
+    if time.time() - ts > _CACHE_TTL:
+        try:
+            del _SCORE_CACHE[key]
+        except KeyError:
+            pass
+        return False, None
+    return True, val
+
+
+def _cache_set(key: str, val: any):
+    _SCORE_CACHE[key] = (time.time(), val)
 
 app.add_middleware(
     CORSMiddleware,
@@ -245,6 +275,20 @@ def approve_content(payload: ApprovalRequest) -> ApprovalResponse:
     )
 
 
+@app.post("/api/posts")
+def save_post(payload: Dict[str, Any]):
+    """Persist approved/rejected posts to backend/data/posts.jsonl"""
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    out = data_dir / "posts.jsonl"
+    try:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, default=str) + "\n")
+        return {"success": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # Load Ratefluencer model if available
 MODEL = None
 MODEL_PATH = Path(__file__).resolve().parents[1] / "ml" / "ratefluencer_model.joblib"
@@ -300,6 +344,14 @@ def score_influencer(payload: ScoreRequest) -> ScoreResponse:
         float(growth_score),
     ]
 
+    # use cache key based on metrics + quality + growth
+    key_raw = json.dumps({"metrics": metrics, "quality": quality, "growth": growth_score}, sort_keys=True)
+    key = hashlib.sha256(key_raw.encode()).hexdigest()
+    hit, cached = _cache_get(key)
+    if hit:
+        logger.info("Score cache hit")
+        return ScoreResponse(success=True, score=cached, details={"authenticity": authenticity, "growth_score": growth_score, "engagement_rate": engagement_rate})
+
     if MODEL is None:
         # fallback simple scoring
         score = float(0.5 * authenticity + 0.5 * growth_score)
@@ -309,6 +361,8 @@ def score_influencer(payload: ScoreRequest) -> ScoreResponse:
             score = float(pred[0])
         except Exception:
             score = float(0.5 * authenticity + 0.5 * growth_score)
+
+    _cache_set(key, score)
 
     return ScoreResponse(success=True, score=score, details={"authenticity": authenticity, "growth_score": growth_score, "engagement_rate": engagement_rate})
 

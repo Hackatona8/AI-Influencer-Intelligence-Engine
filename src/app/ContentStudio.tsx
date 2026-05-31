@@ -305,6 +305,21 @@ export default function ContentStudio() {
                     <div className="mt-2 text-sm text-[color:var(--ink)] whitespace-pre-wrap">
                       {generation.content.reel_script}
                     </div>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          className="rounded-full border px-3 py-1 text-xs"
+                          onClick={() => navigator.clipboard.writeText(generation.content!.reel_script)}
+                        >
+                          Copy
+                        </button>
+                        <a
+                          className="rounded-full border px-3 py-1 text-xs"
+                          href={`data:text/plain;charset=utf-8,${encodeURIComponent(generation.content.reel_script)}`}
+                          download={`reel_${generation.postId}.txt`}
+                        >
+                          Download
+                        </a>
+                      </div>
                   </div>
 
                   <div className="rounded-2xl border border-[color:var(--line)] bg-white p-4">
@@ -314,6 +329,18 @@ export default function ContentStudio() {
                     <div className="mt-2 text-sm text-[color:var(--ink)] whitespace-pre-wrap">
                       {generation.content.linkedin_post}
                     </div>
+                    <div className="mt-3 flex gap-2">
+                      <button className="rounded-full border px-3 py-1 text-xs" onClick={() => navigator.clipboard.writeText(generation.content!.linkedin_post)}>
+                        Copy
+                      </button>
+                      <a
+                        className="rounded-full border px-3 py-1 text-xs"
+                        href={`data:text/plain;charset=utf-8,${encodeURIComponent(generation.content.linkedin_post)}`}
+                        download={`linkedin_${generation.postId}.txt`}
+                      >
+                        Download
+                      </a>
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-[color:var(--line)] bg-white p-4">
@@ -322,6 +349,18 @@ export default function ContentStudio() {
                     </div>
                     <div className="mt-2 text-sm text-[color:var(--ink)]">
                       {generation.content.instagram_caption}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button className="rounded-full border px-3 py-1 text-xs" onClick={() => navigator.clipboard.writeText(generation.content!.instagram_caption)}>
+                        Copy
+                      </button>
+                      <a
+                        className="rounded-full border px-3 py-1 text-xs"
+                        href={`data:text/plain;charset=utf-8,${encodeURIComponent(generation.content.instagram_caption)}`}
+                        download={`insta_${generation.postId}.txt`}
+                      >
+                        Download
+                      </a>
                     </div>
                   </div>
                 </div>

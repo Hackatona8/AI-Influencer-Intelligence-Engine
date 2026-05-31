@@ -10,3 +10,5 @@ joblib
 numpy
 scikit-learn
 lightgbm
+pytest
+pytest-cov
