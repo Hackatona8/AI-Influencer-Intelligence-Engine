@@ -61,12 +61,14 @@ def train_and_save(out_path: str):
     train_data = lgb.Dataset(X_train, label=y_train)
     val_data = lgb.Dataset(X_val, label=y_val)
     params = {"objective": "regression", "metric": "rmse", "verbosity": -1}
-    model = lgb.train(params, train_data, valid_sets=[val_data], num_boost_round=100, early_stopping_rounds=10)
+    model = lgb.train(params, train_data, valid_sets=[val_data], num_boost_round=100)
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     joblib.dump(model, out_path)
     preds = model.predict(X_val)
-    print("RMSE:", mean_squared_error(y_val, preds, squared=False))
+    import numpy as _np
+    rmse = _np.sqrt(mean_squared_error(y_val, preds))
+    print("RMSE:", rmse)
 
 
 if __name__ == "__main__":
