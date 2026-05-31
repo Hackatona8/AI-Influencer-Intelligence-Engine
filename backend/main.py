@@ -267,12 +267,46 @@ def generate_content(payload: GenerateRequest) -> GenerateResponse:
 @app.post("/api/approve", response_model=ApprovalResponse)
 def approve_content(payload: ApprovalRequest) -> ApprovalResponse:
     verdict = "approved" if payload.status == "approved" else "rejected"
-    return ApprovalResponse(
+    resp = ApprovalResponse(
         success=True,
         postId=payload.post_id,
         status=payload.status,
         message=f"Post {payload.post_id} marked as {verdict}.",
     )
+
+    # persist approval event to posts.jsonl for history
+    try:
+        data_dir = Path(__file__).resolve().parents[1] / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        out = data_dir / "posts.jsonl"
+        entry = {"postId": payload.post_id, "status": payload.status, "timestamp": time.time()}
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry) + "\n")
+    except Exception:
+        # non-fatal; continue
+        logger.exception("Failed to persist post approval")
+
+    return resp
+
+
+@app.get("/api/posts")
+def list_posts(limit: int = 50):
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    out = data_dir / "posts.jsonl"
+    results = []
+    if not out.exists():
+        return results
+    try:
+        with open(out, "r", encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    results.append(json.loads(line))
+                except Exception:
+                    continue
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to read posts")
+    # return most recent first
+    return list(reversed(results))[:limit]
 
 
 @app.post("/api/posts")

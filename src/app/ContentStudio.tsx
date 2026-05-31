@@ -41,6 +41,7 @@ export default function ContentStudio() {
   const [forecastLoadingByTopic, setForecastLoadingByTopic] = useState<Record<string, boolean>>({});
   const [scoreByTopic, setScoreByTopic] = useState<Record<string, number | null>>({});
   const [scoringLoadingByTopic, setScoringLoadingByTopic] = useState<Record<string, boolean>>({});
+  const [posts, setPosts] = useState<Array<{ postId?: string; status?: string; timestamp?: number }>>([]);
 
   const Sparkline = ({ data }: { data: number[] }) => {
     if (!data || data.length === 0) return null;
@@ -180,10 +181,32 @@ export default function ContentStudio() {
     try {
       const response = await updateApprovalStatus(generation.postId, status);
       setApprovalNotice(response.message);
+      // persist post record
+      try {
+        await savePost({ postId: generation.postId, status, timestamp: Date.now(), assets: generation.content });
+      } catch (err) {
+        console.error("Failed to save post", err);
+      }
+      // refresh posts
+      try {
+        const p = await fetchPosts(20);
+        setPosts(p);
+      } catch (err) {
+        console.error("Failed to fetch posts", err);
+      }
     } catch (err) {
       setError("Approval update failed.");
     } finally {
       setIsApproving(false);
+    }
+  };
+
+  const loadPosts = async () => {
+    try {
+      const p = await fetchPosts(20);
+      setPosts(p);
+    } catch (err) {
+      console.error("Failed to load posts", err);
     }
   };
 
@@ -373,6 +396,21 @@ export default function ContentStudio() {
               <div className="mt-2 text-sm text-[color:var(--muted)]">
                 Generate a topic to preview assets.
               </div>
+            )}
+          </div>
+        </div>
+        <div className="mt-6 rounded-2xl border border-[color:var(--line)] bg-white/70 p-4">
+          <div className="text-xs uppercase tracking-[0.12em] text-[color:var(--muted)]">Score history</div>
+          <div className="mt-3 text-sm">
+            {posts.length === 0 ? (
+              <div className="text-[color:var(--muted)]">No history yet — approve a generated post to record it.</div>
+            ) : (
+              posts.map((r, i) => (
+                <div key={i} className="flex justify-between py-2 border-b last:border-none">
+                  <div className="text-sm">{r.postId ?? "-"}</div>
+                  <div className="text-xs text-[color:var(--muted)]">{r.status} • {r.timestamp ? new Date(r.timestamp).toLocaleString() : "-"}</div>
+                </div>
+              ))
             )}
           </div>
         </div>

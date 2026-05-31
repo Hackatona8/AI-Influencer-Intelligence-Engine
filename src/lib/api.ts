@@ -111,3 +111,17 @@ export const scoreInfluencer = async (payload: ScoreRequest): Promise<ScoreRespo
     body: JSON.stringify(payload),
   });
 };
+
+export type PostRecord = { postId?: string; status?: string; timestamp?: number; [key: string]: any };
+
+export const savePost = async (payload: PostRecord): Promise<{ success: boolean }> => {
+  return request<{ success: boolean }>("/api/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+};
+
+export const fetchPosts = async (limit = 50): Promise<PostRecord[]> => {
+  return request<PostRecord[]>(`/api/posts?limit=${limit}`);
+};
